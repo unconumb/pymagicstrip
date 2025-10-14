@@ -300,7 +300,7 @@ class MagicStripDevice:
     ) -> None:
         """Handle scanner data."""
 
-        self.state = replace(self.state, rssi=device.rssi)
+        self.state = replace(self.state, rssi=getattr(advertisement_data, "rssi", None))
 
         _LOGGER.debug("Discovered Device: %s", self.state)
 
