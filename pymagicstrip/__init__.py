@@ -28,17 +28,21 @@ _LOGGER.setLevel(logging.DEBUG)
 # _LOGGER.addHandler(handler)
 
 
-def device_filter(device: BLEDevice, advertisement_data: AdvertisementData) -> bool:
-    """Bleak discovery notification device filter."""
+def device_filter(device, advertisement_data):
+    """Return True if this BLE device looks like a MagicStrip controller."""
+    try:
+        name = (device.name or "").lower()
+    except AttributeError:
+        # device or device.name missing
+        return False
 
-    if device.name.lower() in [
-        d.lower() for d in const.HARDCODED_NAMES
-    ] (
-        getattr(device, "metadata", {}) or getattr(device, "details", {})
-        ).get("uuids", []):
-        return True
+    hardcoded = [d.lower() for d in const.HARDCODED_NAMES]
 
-    return False
+    # get uuids from either .metadata or .details (depends on Bleak version)
+    info = getattr(device, "metadata", None) or getattr(device, "details", None) or {}
+    uuids = info.get("uuids", [])
+
+    return name in hardcoded or const.SERVICE_UUID in uuids
 
 
 def _judge_rssi(rssi: int | None) -> str | None:
