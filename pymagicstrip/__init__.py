@@ -33,7 +33,9 @@ def device_filter(device: BLEDevice, advertisement_data: AdvertisementData) -> b
 
     if device.name.lower() in [
         d.lower() for d in const.HARDCODED_NAMES
-    ] and const.SERVICE_UUID in device.metadata.get("uuids", []):
+    ] (
+        getattr(device, "metadata", {}) or getattr(device, "details", {})
+        ).get("uuids", []):
         return True
 
     return False
