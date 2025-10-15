@@ -114,11 +114,13 @@ class MagicStripDevice:
         async with self.lock:
             if self._client_count == 0:
                 try:
-                    self._client = await establish_connection(
-                        BleakClient,
-                        self.ble_device,
-                        name="MagicStrip",
-                    )
+                # Use retry connector for reliable BLE connection
+                self._client = await establish_connection(
+                    client_class=BleakClient,
+                    device=self.ble_device,
+                    name="MagicStrip",
+                    max_attempts=3,
+                )
                 except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
                     _LOGGER.debug("Timeout on connect", exc_info=True)
                     raise BleTimeoutError("Timeout on connect") from exc
