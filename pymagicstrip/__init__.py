@@ -18,7 +18,7 @@ from . import const
 from .const import CHARACTERISTIC_UUID, CMD_ACK, EFFECTS, TOGGLE_POWER
 from .errors import BleConnectionError, BleTimeoutError, OutOfRange
 
-__version__ = "0.1.1"
+__version__ = "0.1.3"
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
