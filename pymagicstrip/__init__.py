@@ -109,29 +109,35 @@ class MagicStripDevice:
         self._client = BleakClient(self.ble_device)
         self._client_count = 0
 
-    async def __aenter__(self) -> MagicStripDevice:
-        """Enter context."""
-        async with self.lock:
-            if self._client_count == 0:
-                try:
-                # Use retry connector for reliable BLE connection
-                self._client = await establish_connection(
-                    client_class=BleakClient,
-                    device=self.ble_device,
-                    name="MagicStrip",
-                    max_attempts=3,
-                )
-                except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
-                    _LOGGER.debug("Timeout on connect", exc_info=True)
-                    raise BleTimeoutError("Timeout on connect") from exc
-                except asyncio.CancelledError as exc:
-                    _LOGGER.debug("Connection cancelled", exc_info=True)
-                    raise BleTimeoutError("Connection cancelled") from exc
-                except BleakError as exc:
-                    _LOGGER.debug("Error on connect", exc_info=True)
-                    raise BleConnectionError("Error on connect") from exc
-            self._client_count += 1
-            return self
+    async def __aenter__(self) -> "MagicStripDevice":
+    """Enter context and ensure BLE client is connected via HA's backend."""
+    async with self.lock:
+        if self._client_count == 0:
+            try:
+                # Use Home Assistant compatible connection
+                from bleak_retry_connector import establish_connection
+
+                if not getattr(self._client, "is_connected", False):
+                    self._client = await establish_connection(
+                        client_class=BleakClient,
+                        device=self.ble_device,
+                        name=getattr(self.ble_device, "name", "MagicStrip"),
+                        max_attempts=3,  # Retry up to 3 times
+                    )
+
+            except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
+                _LOGGER.debug("Timeout on connect", exc_info=True)
+                raise BleTimeoutError("Timeout on connect") from exc
+            except asyncio.CancelledError as exc:
+                _LOGGER.debug("Connection cancelled", exc_info=True)
+                raise BleTimeoutError("Connection cancelled") from exc
+            except Exception as exc:
+                _LOGGER.debug("Error on connect", exc_info=True)
+                raise BleConnectionError("Error on connect") from exc
+
+        self._client_count += 1
+        return self
+
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         """Exit context."""
