@@ -12,6 +12,7 @@ from bleak import BleakClient
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 from bleak.exc import BleakError
+from bleak_retry_connector import establish_connection
 
 from . import const
 from .const import CHARACTERISTIC_UUID, CMD_ACK, EFFECTS, TOGGLE_POWER
@@ -113,7 +114,11 @@ class MagicStripDevice:
         async with self.lock:
             if self._client_count == 0:
                 try:
-                    await self._client.__aenter__()
+                    self._client = await establish_connection(
+                        BleakClient,
+                        self.ble_device,
+                        name="MagicStrip",
+                    )
                 except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
                     _LOGGER.debug("Timeout on connect", exc_info=True)
                     raise BleTimeoutError("Timeout on connect") from exc
