@@ -18,7 +18,7 @@ from . import const
 from .const import CHARACTERISTIC_UUID, CMD_ACK, EFFECTS, TOGGLE_POWER
 from .errors import BleConnectionError, BleTimeoutError, OutOfRange
 
-__version__ = "0.1.5"
+__version__ = "0.1.6"
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(logging.DEBUG)
@@ -110,31 +110,44 @@ class MagicStripDevice:
         self._client_count = 0
 
     async def __aenter__(self) -> "MagicStripDevice":
-        """Enter context and ensure BLE client is connected via retry connector."""
-        async with self.lock:
-            if self._client_count == 0:
-                try:
-                    from bleak_retry_connector import establish_connection
-    
-                    self._client = await establish_connection(
-                        client_class=BleakClient,
-                        device=self.ble_device,
-                        name=getattr(self.ble_device, "name", "MagicStrip"),
-                        max_attempts=3,  # Retry up to 3 times
-                    )
-    
-                except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
-                    _LOGGER.debug("Timeout on connect", exc_info=True)
-                    raise BleTimeoutError("Timeout on connect") from exc
-                except asyncio.CancelledError as exc:
-                    _LOGGER.debug("Connection cancelled", exc_info=True)
-                    raise BleTimeoutError("Connection cancelled") from exc
-                except Exception as exc:
-                    _LOGGER.debug("Error on connect", exc_info=True)
-                    raise BleConnectionError("Error on connect") from exc
-    
-            self._client_count += 1
-            return self
+    """Enter context and ensure BLE client is connected via retry connector."""
+    async with self.lock:
+        if self._client_count == 0 or not self._client or not self._client.is_connected:
+            try:
+                from bleak_retry_connector import establish_connection
+
+                _LOGGER.debug(
+                    "Establishing BLE connection to %s (attempts=3)...",
+                    getattr(self.ble_device, "address", "<unknown>"),
+                )
+
+                self._client = await establish_connection(
+                    client_class=BleakClient,
+                    device=self.ble_device,
+                    name=getattr(self.ble_device, "name", "MagicStrip"),
+                    max_attempts=3,
+                    use_services_cache=False,  # avoid stale handles
+                )
+
+                # Give the device a short moment to be ready for commands
+                await asyncio.sleep(0.5)
+
+                if not self._client.is_connected:
+                    raise BleConnectionError("Client unexpectedly disconnected after connect")
+
+            except (asyncio.TimeoutError, asyncio.exceptions.TimeoutError) as exc:
+                _LOGGER.debug("Timeout on connect", exc_info=True)
+                raise BleTimeoutError("Timeout on connect") from exc
+            except asyncio.CancelledError as exc:
+                _LOGGER.debug("Connection cancelled", exc_info=True)
+                raise BleTimeoutError("Connection cancelled") from exc
+            except Exception as exc:
+                _LOGGER.debug("Error on connect", exc_info=True)
+                raise BleConnectionError(f"Error on connect: {exc}") from exc
+
+        self._client_count += 1
+        return self
+
 
 
 
